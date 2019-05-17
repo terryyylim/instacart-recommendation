@@ -71,7 +71,7 @@ DATA_SCHEMA = {
                     order_number integer,
                     order_dow integer,
                     order_hour_of_day integer,
-                    days_since_prior integer
+                    days_since_prior text
                 )
             """,
         'dropquery': """DROP TABLE orders"""

@@ -26,7 +26,12 @@ def main(file: str) -> None:
         file_name = f'tempdata/{file}.csv'
 
     logging.info(f'Inserting data into {table_name} table.')
-    conn = psycopg2.connect(f'host={config.CREDENTIALS['host']} dbname={config.CREDENTIALS['database']} user={config.CREDENTIALS['user']}')
+    logging.info(config.CREDENTIALS)
+    conn = psycopg2.connect(
+        host=config.CREDENTIALS['host'],
+        database=config.CREDENTIALS['database'],
+        user=config.CREDENTIALS['user']
+        )
     logging.info(conn)
 
     cur = conn.cursor()
