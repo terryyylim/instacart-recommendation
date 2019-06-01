@@ -29,3 +29,7 @@ venv.bak/
 
 # Configs
 **config.py
+
+# Folders
+**/datasets
+**/models
