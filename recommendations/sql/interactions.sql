@@ -1,7 +1,13 @@
 SELECT
     user_id,
     product_id,
-    count(distinct order_id)
+    CASE 
+        WHEN count(DISTINCT order_id) IS NOT NULL
+            THEN count(DISTINCT order_id)
+        ELSE
+            0
+        END
+    AS num
 FROM (
     SELECT
         orders.order_id,
