@@ -5,6 +5,7 @@ import logging
 import pandas as pd
 import numpy as np
 import psycopg2 as pg
+from prettytable import PrettyTable
 from lightfm.data import Dataset as LFMDataset
 
 import helpers
@@ -15,7 +16,7 @@ from config import data_configurations
 class Dataset:
     def __init__(self, config: DataConfig) -> None:
         self.config = config
-        self.product_data: pd.DataFrame
+        self.item_data: pd.DataFrame
         self.user_data: pd.DataFrame
         self.interaction_data: pd.DataFrame
 
@@ -24,7 +25,7 @@ class Dataset:
     def create(self) -> None:
         self._pull_data()
         self._preprocess_data()
-        # self.build_lightfm_dataset()
+        self.build_lightfm_dataset()
 
     def _pull_data(self) -> None:
         for query_name, query_info in self.config.QUERIES.items():
@@ -39,23 +40,31 @@ class Dataset:
                 setattr(self, query_name, result)
 
     def _preprocess_data(self) -> None:
-        logging.info(f'Shape of product_details dataframe: {self.product_data.shape}')
-        logging.info(f'Shape of user_details dataframe: {self.user_data.shape}')
+        logging.info(f'Shape of item_data dataframe: {self.item_data.shape}')
+        logging.info(f'Shape of user_data dataframe: {self.user_data.shape}')
         logging.info(f'Shape of interactions dataframe: {self.interaction_data.shape}')
 
-        print(self.interaction_data.head())
-        print(self.interaction_data.tail())
-        logging.info(self.interaction_data.nunique())
-        logging.info(self.product_data.nunique())
-        logging.info('printing item data')
-        logging.info(self.product_data.head())
+        logging.info(f'Interaction Data (head): \n{self.interaction_data.head()}')
+        logging.info(f'Interaction Data (tail): \n{self.interaction_data.tail()}')
+        logging.info(f'Unique Counts (Interaction Data) \n{self.interaction_data.nunique()}')
+        logging.info(f'Unique Counts (Item Data) \n{self.item_data.nunique()}')
+
+        itemTable = PrettyTable(['pid', 'product_name', 'aisle', 'department', 'num'])
+        itemTable.add_row([
+           self.item_data['pid'],
+           self.item_data['product_name'],
+           self.item_data['aisle'],
+           self.item_data['department'],
+           self.item_data['num']
+        ])
+        logging.info(f'Item Data: \n{itemTable}')
 
         logging.info('printing user before in interaction')
         logging.info(self.user_data)
         user_data = self.user_data[
             self.user_data['user_id'].isin(self.interaction_data['user_id'])
         ].reset_index(drop=True)
-        logging.info('printing user is in interaction')
+        logging.info('Logging Users with interaction')
         logging.info(user_data)
         logging.info(user_data.shape)
 
@@ -63,56 +72,59 @@ class Dataset:
         user_data_no_interactions = self.user_data[
             ~self.user_data['user_id'].isin(self.interaction_data['user_id'])
         ].reset_index(drop=True)
-        logging.info('printing no interactions')
+        logging.info('Logging Users with no interaction')
         logging.info(user_data_no_interactions)
 
-        product_data = self.product_data[
-            self.product_data['pid'].isin(self.interaction_data['product_id'])
+        item_data = self.item_data[
+            self.item_data['pid'].isin(self.interaction_data['product_id'])
         ].reset_index(drop=True)
 
-        product_data_no_interactions = self.product_data[
-            ~self.product_data['pid'].isin(self.interaction_data['product_id'])
+        item_data_no_interactions = self.item_data[
+            ~self.item_data['pid'].isin(self.interaction_data['product_id'])
         ].reset_index(drop=True)
+        logging.info('Logging Items with no interaction')
+        logging.info(f'\n{item_data_no_interactions}')
 
-        interaction_products = pd.DataFrame(
+        interaction_variants = pd.DataFrame(
             pd.unique(self.interaction_data['product_id']), columns=['product_id']
         )
 
-        logging.info(f'Total Interaction Product Count: {len(interaction_products)}')
-        logging.info(f'interaction_products Dataframe: {interaction_products.head()}')
+        logging.info(f'Total Interaction Variant Count: {len(interaction_variants)}')
+        logging.info(f'Interaction_variants Dataframe: \n{interaction_variants.head()}')
 
-        product_data = pd.merge(
-            interaction_products, product_data, left_on='product_id', right_on='pid', how='inner'
+        item_data = pd.merge(
+            interaction_variants, item_data, left_on='product_id', right_on='pid', how='inner'
         ).drop('pid', axis=1)
 
         self.user_list = user_data.to_dict(orient='records')
-        self.product_list = product_data.to_dict(orient='records')
+        self.item_list = item_data.to_dict(orient='records')
         self.interaction_list = self.interaction_data.to_dict(orient='records')
 
-        logging.info('Printing in orient: records format.')
-        logging.info(self.user_list[:10])
-        logging.info(self.product_list[:10])
-        logging.info(self.interaction_list[:10])
+        logging.info('Logging in orient: records format.')
+        logging.info(f'User List (first 10 items): \n{self.user_list[:10]}')
+        logging.info(f'Item List (first 10 items): \n{self.item_list[:10]}')
+        logging.info(f'Interaction List (first 10 items): \n{self.interaction_list[:10]}')
 
         self.user_df = user_data
-        self.product_df = product_data
+        self.item_df = item_data
         self.interaction_df = self.interaction_data
 
         logging.info('Printing User, Product, Interaction Dataframes.')
-        logging.info(self.user_df.head())
-        logging.info(self.product_df.head())
-        logging.info(self.interaction_df.head())
-        logging.info('Printing product_data_no_interactions')
-        logging.info(product_data_no_interactions)
+        logging.info(f'User DataFrame: \n{self.user_df.head()}')
+        logging.info(f'Item DataFrame: \n{self.item_df.head()}')
+        logging.info(f'Interaction DataFrame: \n{self.interaction_df.head()}')
 
         self.user_no_interactions_df = user_data_no_interactions
-        self.product_no_interactions_df = product_data_no_interactions
-        self.product_no_interactions_list = product_data_no_interactions.sort_values(['num'], ascending=False).pid.tolist()
+        self.item_no_interactions_df = item_data_no_interactions
+        self.item_no_interactions_list = item_data_no_interactions.sort_values(['num'], ascending=False).pid.tolist()
 
-        logging.info('printing product data no interactions')
-        logging.info(product_data_no_interactions)
+        logging.info('Logging no interaction list')
+        logging.info(f'No Interaction List: \n{self.item_no_interactions_list}')
 
     def build_lightfm_dataset(self) -> None:
+        """
+        Builds final datasets for user-variant and variant-variant recommendations.
+        """
         logging.info("Creating LightFM matrices...")
         lightfm_dataset = LFMDataset()
         ratings_list = self.interaction_list
@@ -122,38 +134,40 @@ class Dataset:
             (rating['product_id'] for rating in ratings_list)
         )
 
-        logging.info('printing product_feature_names')
-        product_feature_names = self.product_df.columns
-        logging.info(product_feature_names)
-        product_feature_names = product_feature_names[~product_feature_names.isin(['user_id'])]
-        logging.info(product_feature_names)
+        item_feature_names = self.item_df.columns
+        logging.info(f'Logging item_feature_names - with product_id: \n{item_feature_names}')
+        item_feature_names = item_feature_names[~item_feature_names.isin(['product_id'])]
+        logging.info(f'Logging item_feature_names - without product_id: \n{item_feature_names}')
 
-        for product_feature_name in product_feature_names:
+        for item_feature_name in item_feature_names:
             lightfm_dataset.fit_partial(
-                items=(product['product_id'] for product in self.product_list),
-                item_features=((product[product_feature_name] for product in self.product_list)),
+                items=(item['product_id'] for item in self.item_list),
+                item_features=((item[item_feature_name] for item in self.item_list)),
             )
 
-        product_features_data = []
-        # logging.info(self.product_list)
-        for product in self.product_list:
-            product_features_data.append(
+        item_features_data = []
+        for item in self.item_list:
+            item_features_data.append(
                 (
-                    product['product_id'],
+                    item['product_id'],
                     [
-                        product['product_name'],
-                        product['aisle'],
-                        product['department']
+                        item['product_name'],
+                        item['aisle'],
+                        item['department']
                     ],
                 )
             )
-        logging.info(product_features_data)
-        self.product_features = lightfm_dataset.build_item_features(product_features_data)
+        logging.info(f'Logging item_features_data @build_lightfm_dataset: \n{item_features_data}')
+        self.item_features = lightfm_dataset.build_item_features(item_features_data)
         self.interactions, self.weights = lightfm_dataset.build_interactions(
             ((rating['user_id'], rating['product_id']) for rating in ratings_list)
         )
-        logging.info(self.interactions)
-        logging.info(self.weights)
+
+        logging.info(f'Logging self.interactions @build_lightfm_dataset: \n{self.interactions}')
+        logging.info(f'Logging self.weights @build_lightfm_dataset: \n{self.weights}')
+        logging.info(
+            f'The shape of self.interactions {self.interactions.shape} '
+            f'and self.weights {self.weights.shape} represent the user-item matrix.')
             
 
 @click.command()
@@ -165,7 +179,7 @@ def main(config: str) -> None:
 
     dataset = Dataset(config=configuration)  # type: ignore
     dataset.create()
-    # helpers.save(dataset)
+    helpers.save(dataset)
 
 
 if __name__ == "__main__":
