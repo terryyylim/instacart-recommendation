@@ -163,6 +163,8 @@ class Dataset:
             ((rating['user_id'], rating['product_id']) for rating in ratings_list)
         )
 
+        self.n_users, self.n_items = self.interactions.shape
+
         logging.info(f'Logging self.interactions @build_lightfm_dataset: \n{self.interactions}')
         logging.info(f'Logging self.weights @build_lightfm_dataset: \n{self.weights}')
         logging.info(
