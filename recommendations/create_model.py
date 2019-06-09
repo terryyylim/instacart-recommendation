@@ -157,7 +157,16 @@ class Model:
             a.add_item(item, latent_repr_emb[item])
         a.build(self.config.ANNOY_PARAMS['trees'])
 
-        top_n = a.get_nns_by_item(0, self.config.ANNOY_PARAMS['nn_count'], search_k=-1, include_distances=False)
+        persistence_path = Path(self.persistence_path)
+        if not persistence_path.is_dir():
+            persistence_path.mkdir(parents=True)
+
+        persistance_file = os.path.join(self.persistence_path, feature_type + ".ann")
+        a.save(persistance_file)
+
+        logging.info(
+            f'{feature_type} vector representations saved to {persistance_file}'
+        )
 
     def delete_var(self, classname: str, attrname: str) -> None:
         '''
