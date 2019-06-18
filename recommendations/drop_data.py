@@ -5,6 +5,7 @@ import psycopg2
 import helpers
 import schema
 
+
 @click.command()
 @click.option('--file', default='production', help='the dataset to drop from Postgres database')
 def main(file: str) -> None:

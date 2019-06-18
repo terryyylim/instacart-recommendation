@@ -3,7 +3,6 @@ from typing import Dict
 import click
 import logging
 import pandas as pd
-import numpy as np
 import psycopg2 as pg
 from prettytable import PrettyTable
 from lightfm.data import Dataset as LFMDataset
@@ -170,7 +169,7 @@ class Dataset:
         logging.info(
             f'The shape of self.interactions {self.interactions.shape} '
             f'and self.weights {self.weights.shape} represent the user-item matrix.')
-            
+
 
 @click.command()
 @click.option('--config', default='production', help='the deployment target')

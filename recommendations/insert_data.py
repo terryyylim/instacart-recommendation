@@ -7,6 +7,7 @@ import config
 import helpers
 import schema
 
+
 @click.command()
 @click.option('--file', default='production', help='the dataset to load to Postgres database')
 def main(file: str) -> None:
@@ -40,7 +41,7 @@ def main(file: str) -> None:
     with open(file_name, 'r') as f:
         next(f)
         cur.copy_from(f, table_name, sep=',')
-    
+
     conn.commit()
 
 
