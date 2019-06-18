@@ -18,8 +18,8 @@ DATA_SCHEMA = {
                     department_id integer PRIMARY KEY,
                     department text
                 )
-            """
-        , 'dropquery': """DROP TABLE departments"""
+            """,
+        'dropquery': """DROP TABLE departments"""
     },
     'order_products_prior': {
         'filename': 'data/order_products__prior.csv',

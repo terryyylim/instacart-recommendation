@@ -1,6 +1,4 @@
-from typing import Mapping
-from typing import Type
-from typing import List
+from typing import Dict
 from typing import Any
 
 from pathlib import Path
@@ -10,12 +8,12 @@ import datetime
 import logging
 import pandas as pd
 
-from config import Config
 
-def clean_data(df: pd.DataFrame):
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df['product_name'] = df['product_name'].str.replace(',', '')
 
     return df
+
 
 def get_logger() -> logging.Logger:
     logger = logging.getLogger('')
@@ -29,7 +27,7 @@ def get_logger() -> logging.Logger:
     return logger
 
 
-def get_configuration(config: str, configurations: Mapping[str, Type[Config]]) -> Type[Config]:
+def get_configuration(config: str, configurations: Dict[str, Any]) -> Any:
     try:
         configuration = configurations[config]
     except KeyError:

@@ -3,7 +3,6 @@ from typing import Dict
 import click
 import logging
 import pandas as pd
-import numpy as np
 import psycopg2 as pg
 from prettytable import PrettyTable
 from lightfm.data import Dataset as LFMDataset
@@ -163,12 +162,14 @@ class Dataset:
             ((rating['user_id'], rating['product_id']) for rating in ratings_list)
         )
 
+        self.n_users, self.n_items = self.interactions.shape
+
         logging.info(f'Logging self.interactions @build_lightfm_dataset: \n{self.interactions}')
         logging.info(f'Logging self.weights @build_lightfm_dataset: \n{self.weights}')
         logging.info(
             f'The shape of self.interactions {self.interactions.shape} '
             f'and self.weights {self.weights.shape} represent the user-item matrix.')
-            
+
 
 @click.command()
 @click.option('--config', default='production', help='the deployment target')

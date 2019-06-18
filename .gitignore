@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.mypy_cache/
 
 # Unit test / coverage reports
 .pytest_cache/
@@ -33,3 +34,6 @@ venv.bak/
 # Folders
 **/datasets
 **/models
+
+# Local Test Run Script
+**localrun.py
