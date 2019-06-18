@@ -2,11 +2,9 @@ from typing import List
 from typing import Optional
 
 import logging
-import datetime
 
 import os
 import click
-import numpy as np
 from pathlib import Path
 from annoy import AnnoyIndex
 from lightfm import LightFM
@@ -17,6 +15,7 @@ import helpers
 from create_dataset import Dataset  # noqa
 from config import model_configurations
 from config import ModelConfig
+
 
 class Model:
     def __init__(
@@ -52,7 +51,7 @@ class Model:
             logging.info(f'Training the main model with dataset {self.input_file}...')
         else:
             logging.info('Training the model...')
-        
+
         train_validation, test = train_test_split(
             self.dataset.interactions, **self.config.VALIDATION_PARAMS
         )
@@ -101,7 +100,7 @@ class Model:
                 no_improvement_rounds += 1
 
             logging.info(f'[{epoch}]\tvalidation_warp_auc: {warp_auc[-1]}')
-        
+
         self.num_epochs = len(warp_auc) - early_stopping_rounds
         logging.info(f'Stopping. Best Iteration:')
         logging.info(
@@ -118,41 +117,83 @@ class Model:
 
         self.model = model
         self.test_score = test_score
-    
-    def build_annoy_representations(
-        self,
-        feature_type: str
+
+    def build_cab_model(
+        self
     ) -> None:
         '''
-        Getting product/user matrix into proper representations required to 
+        Fits model for complement variant recommendations. Only interaction matrices are fed
+        into the LightFM model, without any content-based information.
+        '''
+        if hasattr(self, 'input_file'):
+            logging.info(f'Training the main CAB model with dataset {self.input_file}...')
+        else:
+            logging.info('Training the CAB model...')
+
+        cab_model = LightFM(**self.config.LIGHTFM_CAB_PARAMS)
+        self.cab_model = cab_model.fit(
+            interactions=self.dataset.interactions,
+            epochs=self.config.FIT_PARAMS['epochs']
+        )
+
+    def build_annoy_representations(
+        self,
+        feature_type: str,
+        is_cab: bool
+    ) -> None:
+        '''
+        Getting product/user matrix into proper representations required to
         perform Approximate Nearest Neighbors.
         ---------------
         From LightFM get_item_representations - Index 0: Item biases; Index 1: Item embeddings
+        - Excluding Content-based information for CAB model since user/item features overpower MF.
         '''
         logging.info('Preparing matrix representations for ANN ~')
-        if feature_type == 'user':
-            latent_repr_emb = self.model.get_user_representations(
-                features=self.dataset.user_features
-            )[1]
-            logging.info(
-                f'Preparing Annoy object using user_features\n'
-                f'Type: {type(self.dataset.user_features)}\n'
-                f'Shape: {self.dataset.user_features.shape}'
-            )
-        elif feature_type == 'item':
-            latent_repr_emb = self.model.get_item_representations(
-                features=self.dataset.item_features
-            )[1]
-            logging.info(
-                f'Preparing Annoy object using item_features\n'
-                f'Type: {type(self.dataset.item_features)}\n'
-                f'Shape: {self.dataset.item_features.shape}'
-            )
+        if is_cab:
+            file_label = '_cab.ann'
+            emb_dim = self.config.ANNOY_PARAMS['cab_emb_dim']
+            if feature_type == 'user':
+                latent_repr_emb = self.cab_model.get_user_representations()[1]
+                logging.info(
+                    f'Preparing CAB Annoy object using user_features\n'
+                    f'Type: {type(self.dataset.user_features)}\n'
+                    f'Shape: {self.dataset.user_features.shape}'
+                )
+            elif feature_type == 'item':
+                latent_repr_emb = self.cab_model.get_item_representations()[1]
+                logging.info(
+                    f'Preparing CAB Annoy object using item_features\n'
+                    f'Type: {type(self.dataset.item_features)}\n'
+                    f'Shape: {self.dataset.item_features.shape}'
+                )
+            else:
+                raise ValueError('Unknown feature type passed to function')
         else:
-            raise ValueError('Unknown feature type passed to function')
-        
+            file_label = '.ann'
+            emb_dim = self.config.ANNOY_PARAMS['emb_dim']
+            if feature_type == 'user':
+                latent_repr_emb = self.model.get_user_representations(
+                    features=self.dataset.user_features
+                )[1]
+                logging.info(
+                    f'Preparing Annoy object using user_features\n'
+                    f'Type: {type(self.dataset.user_features)}\n'
+                    f'Shape: {self.dataset.user_features.shape}'
+                )
+            elif feature_type == 'item':
+                latent_repr_emb = self.model.get_item_representations(
+                    features=self.dataset.item_features
+                )[1]
+                logging.info(
+                    f'Preparing Annoy object using item_features\n'
+                    f'Type: {type(self.dataset.item_features)}\n'
+                    f'Shape: {self.dataset.item_features.shape}'
+                )
+            else:
+                raise ValueError('Unknown feature type passed to function')
+
         logging.info(f'Shape of embeddings: {latent_repr_emb.shape}')
-        a = AnnoyIndex(self.config.ANNOY_PARAMS['emb_dim'])
+        a = AnnoyIndex(emb_dim, metric=self.config.ANNOY_PARAMS['metric'])
         for item in range(len(latent_repr_emb)):
             a.add_item(item, latent_repr_emb[item])
         a.build(self.config.ANNOY_PARAMS['trees'])
@@ -161,7 +202,7 @@ class Model:
         if not persistence_path.is_dir():
             persistence_path.mkdir(parents=True)
 
-        persistance_file = os.path.join(self.persistence_path, feature_type + ".ann")
+        persistance_file = os.path.join(self.persistence_path, feature_type + file_label)
         a.save(persistance_file)
 
         logging.info(
@@ -192,21 +233,19 @@ class Model:
 def main(input_file: str, config: str) -> None:
     logging.info("Creating model...")
 
-    # configuration = helpers.get_configuration(config, model_configurations)
+    configuration = helpers.get_configuration(config, model_configurations)
+    model = Model(config=configuration, input_file=input_file)
 
-    # model = Model(config=configuration, input_file=input_file)
-    model_files = Path('./models/').glob('*.pbz2')
-    latest_model_file = max(model_files, key=lambda file: file.stat().st_ctime)
-    model_file = latest_model_file.as_posix()
-    model = helpers.load_input_file(model_file)
-    logging.info('got here at least...')
-    model.build_annoy_representations('item')
+    model.build_model()
+    model.build_cab_model()
+    model.build_annoy_representations(feature_type='item', is_cab=True)
+    model.build_annoy_representations(feature_type='item', is_cab=False)
     model.clean_up()
 
-    # try:
-    #     helpers.save(model)
-    # except Exception:
-    #     logging.info('Error while saving model.')
+    try:
+        helpers.save(model)
+    except Exception:
+        logging.info('Error while saving model.')
 
 
 if __name__ == '__main__':
