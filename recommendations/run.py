@@ -29,14 +29,18 @@ def main(config: str) -> None:
         model_configuration = helpers.get_configuration(config, model_configurations)
         model = Model(model_configuration, input_dataset=dataset)
         model.build_model()
-        model.build_annoy_representations('item')
+        model.build_annoy_representations(feature_type='item', is_cab=True)
+        model.build_annoy_representations(feature_type='item', is_cab=False)
 
         # Prediction
         logging.info("Creating predictions...")
         prediction_configuration = helpers.get_configuration(config, prediction_configurations)
         predictor = UserItemPrediction(config=prediction_configuration)
-        predictor.get_similar_items(prediction_configuration.DEFAULT_ITEM_EG)
-        predictor.get_lightfm_recommendation(prediction_configuration.DEFAULT_USER_EG)
+        predictor.get_similar_items(product_id=prediction_configuration.DEFAULT_ITEM_EG, rec_type=1)
+        predictor.get_similar_items(product_id=prediction_configuration.DEFAULT_ITEM_EG, rec_type=2)
+        predictor.get_lightfm_recommendation(
+            user_index=prediction_configuration.DEFAULT_USER_EG,
+            use_precomputed_scores=False)
 
     except Exception as e:
         logging.exception(e)
