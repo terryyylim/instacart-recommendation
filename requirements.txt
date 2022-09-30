@@ -5,7 +5,7 @@ Click==7.0
 entrypoints==0.3
 flake8==3.7.7
 idna==2.8
-joblib==0.13.2
+joblib==1.2.0
 lightfm==1.15
 mccabe==0.6.1
 mypy==0.701
